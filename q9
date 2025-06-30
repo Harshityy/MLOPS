@@ -1,0 +1,78 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score
+
+# Load UCI Adult dataset
+url = "https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"
+columns = [
+    "age", "workclass", "fnlwgt", "education", "education-num", "marital-status",
+    "occupation", "relationship", "race", "sex", "capital-gain", "capital-loss",
+    "hours-per-week", "native-country", "income"
+]
+
+df = pd.read_csv(url, names=columns, skipinitialspace=True, na_values=" ?")
+df.dropna(inplace=True)
+
+# Encode target variable (income)
+df['income'] = df['income'].apply(lambda x: 1 if x == '>50K' else 0)
+
+# Encode sensitive attribute (sex)
+df['sex_male'] = df['sex'].apply(lambda x: 1 if x == 'Male' else 0)
+sex = df['sex_male']
+
+# One-hot encode other categorical variables
+df = pd.get_dummies(df, drop_first=True)
+X = df.drop(columns=['income'])
+y = df['income']
+
+# Scale features
+scaler = StandardScaler()
+X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
+
+# Train-test split
+X_train, X_test, y_train, y_test, sex_train, sex_test = train_test_split(
+    X_scaled, y, sex, test_size=0.2, random_state=42
+)
+
+# Fairness evaluation function
+def fairness(y_true, y_pred, sensitive):
+    male = (sensitive == 1)
+    female = (sensitive == 0)
+
+    acc_m = accuracy_score(y_true[male], y_pred[male])
+    acc_f = accuracy_score(y_true[female], y_pred[female])
+
+    spd = y_pred[female].mean() - y_pred[male].mean()
+    di = y_pred[female].mean() / (y_pred[male].mean() + 1e-6)  # Avoid divide by zero
+
+    print(f"Accuracy Male: {acc_m:.2f}, Female: {acc_f:.2f}")
+    print(f"Statistical Parity Difference: {spd:.2f}, Disparate Impact: {di:.2f}")
+
+# Train base Logistic Regression model (without mitigation)
+clf = LogisticRegression()
+clf.fit(X_train, y_train)
+pred_base = clf.predict(X_test)
+
+print("\n🔹 BEFORE REWEIGHTING (Bias Mitigation)")
+fairness(y_test.values, pred_base, sex_test.values)
+
+# Reweighting to mitigate bias
+train_df = X_train.copy()
+train_df['income'] = y_train.values
+train_df['sex'] = sex_train.values
+
+group_counts = train_df.groupby(['sex', 'income']).size()
+group_weights = 1.0 / group_counts
+
+weights = train_df.apply(lambda row: group_weights.loc[row['sex'], row['income']], axis=1)
+
+# Retrain model with sample weights
+clf_rw = LogisticRegression()
+clf_rw.fit(X_train, y_train, sample_weight=weights)
+pred_rw = clf_rw.predict(X_test)
+
+print("\n🔹 AFTER REWEIGHTING (Bias Mitigation)")
+fairness(y_test.values, pred_rw, sex_test.values)
