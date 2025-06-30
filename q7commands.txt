@@ -1,0 +1,9 @@
+git init
+git add train_model.py model.pkl
+git commit -m "Add training script and saved Logistic Regression model"
+
+bas itne me hogya agr push krna hoto
+
+git remote add origin https://github.com/username/repo.git
+git branch -M main
+git push -u origin main
