@@ -1,0 +1,19 @@
+# 1. Create directory and initialize Git
+mkdir Q2_DVC_Tracking
+cd Q2_DVC_Tracking
+git init
+
+# 2. Install DVC and initialize it
+pip install dvc
+python -m dvc init
+
+# 3. Track files with Git and commit
+git add .
+git commit -m "Tracked iris dataset using DVC"
+
+lab-q2 naam se ek nayi repository bana lo 
+
+# 4. Set up Git remote and push
+git remote add origin https://github.com/YOUR_GITHUB_USERNAME/lab-q2.git
+git branch -M main
+git push -u origin main
